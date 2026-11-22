@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clipper</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #0b0b12; color: #fff; min-height: 100vh;
+    padding: 20px 16px 40px;
+  }
+  h1 { font-size: 26px; margin-bottom: 4px;
+    background: linear-gradient(90deg,#8b5cf6,#ec4899);
+    -webkit-background-clip: text; color: transparent; }
+  .sub { color: #8a8aa3; font-size: 14px; margin-bottom: 20px; }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px; padding: 16px; margin-bottom: 14px;
+    transition: transform .2s ease;
+  }
+  .card:active { transform: scale(0.98); }
+  input {
+    width: 100%; padding: 14px; border-radius: 14px; border: none;
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 15px;
+  }
+  button {
+    width: 100%; margin-top: 10px; padding: 14px; border: none;
+    border-radius: 14px; font-size: 16px; font-weight: 600; color: #fff;
+    background: linear-gradient(90deg,#8b5cf6,#ec4899); cursor: pointer;
+    transition: transform .15s ease, opacity .15s;
+  }
+  button:active { transform: scale(0.97); opacity: .9; }
+  .clip-top { display: flex; justify-content: space-between; align-items: center; }
+  .clip-title { font-weight: 600; font-size: 16px; }
+  .score {
+    font-size: 13px; padding: 4px 10px; border-radius: 99px;
+    background: rgba(236,72,153,0.2); color: #f472b6;
+  }
+  .meta { color: #8a8aa3; font-size: 13px; margin-top: 6px; }
+  .thumb {
+    height: 120px; border-radius: 14px; margin-top: 12px;
+    background: linear-gradient(135deg,#312e81,#831843);
+    display: flex; align-items: center; justify-content: center; font-size: 34px;
+  }
+  .styles { display: flex; gap: 8px; margin-top: 10px; }
+  .styles div {
+    flex: 1; padding: 10px 4px; text-align: center; border-radius: 12px;
+    background: rgba(255,255,255,0.06); font-size: 13px; cursor: pointer;
+  }
+  .styles .on { background: linear-gradient(90deg,#8b5cf6,#ec4899); }
+  .sub-preview {
+    margin-top: 12px; text-align: center; font-weight: 800; font-size: 20px;
+    text-shadow: 0 2px 8px #000; min-height: 56px;
+  }
+  .progress { height: 6px; border-radius: 99px; background: rgba(255,255,255,0.1); margin-top: 12px; overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: linear-gradient(90deg,#8b5cf6,#ec4899); transition: width .4s ease; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Clipper</h1>
+<p class="sub">Клипы из видео для TikTok, Shorts и Reels</p>
+
+<div class="card" id="import">
+  <input id="url" placeholder="Вставьте ссылку на видео">
+  <button onclick="startProcess()">Найти лучшие моменты</button>
+  <div class="progress"><div id="bar"></div></div>
+  <p class="meta" id="status">Ожидание</p>
+</div>
+
+<div id="clips" class="hidden"></div>
+
+<div class="card hidden" id="editor">
+  <div class="clip-title" id="edTitle"></div>
+  <p class="meta">Стиль субтитров</p>
+  <div class="styles">
+    <div class="on" onclick="setStyle(this,'Обводка')">Обводка</div>
+    <div onclick="setStyle(this,'Подсветка')">Подсветка</div>
+    <div onclick="setStyle(this,'Неон')">Неон</div>
+  </div>
+  <div class="thumb">▶</div>
+  <div class="sub-preview" id="subPreview">Так будут выглядеть субтитры</div>
+  <button onclick="exportClip()">Экспорт 9:16</button>
+  <p class="meta" id="exportMsg"></p>
+</div>
+
+<script>
+const clips = [
+  { title: "Самый неожиданный поворот", score: 92, len: "0:34", reason: "Резкая смена темпа и смех" },
+  { title: "Ключевая мысль в одной фразе", score: 85, len: "0:21", reason: "Плотная речь, выделенное слово" },
+  { title: "Спор, который зацепит", score: 78, len: "0:42", reason: "Громкий всплеск и вопрос зрителю" }
+];
+const lines = ["Смотри, что здесь важно", "Это меняет всё", "Запомни этот момент"];
+let timer;
+
+function startProcess() {
+  const bar = document.getElementById('bar');
+  const status = document.getElementById('status');
+  const steps = ["Загрузка видео…", "Транскрипция…", "Поиск моментов…", "Готово"];
+  let i = 0, p = 0;
+  clearInterval(timer);
+  timer = setInterval(() => {
+    p += 25;
+    bar.style.width = Math.min(p, 100) + "%";
+    status.textContent = steps[i];
+    i++;
+    if (i >= steps.length) {
+      clearInterval(timer);
+      showClips();
+    }
+  }, 700);
+}
+
+function showClips() {
+  const box = document.getElementById('clips');
+  box.classList.remove('hidden');
+  box.innerHTML = clips.map((c, idx) => `
+    <div class="card" onclick="openEditor(${idx})">
+      <div class="clip-top">
+        <div class="clip-title">${c.title}</div>
+        <div class="score">${c.score}</div>
+      </div>
+      <div class="meta">${c.len} · ${c.reason}</div>
+    </div>`).join('');
+}
+
+function openEditor(idx) {
+  const ed = document.getElementById('editor');
+  ed.classList.remove('hidden');
+  document.getElementById('edTitle').textContent = clips[idx].title;
+  ed.scrollIntoView({ behavior: 'smooth' });
+}
+
+function setStyle(el, name) {
+  document.querySelectorAll('.styles div').forEach(d => d.classList.remove('on'));
+  el.classList.add('on');
+  const prev = document.getElementById('subPreview');
+  prev.textContent = lines[Math.floor(Math.random() * lines.length)];
+  prev.style.color = name === 'Подсветка' ? '#facc15' : name === 'Неон' ? '#67e8f9' : '#fff';
+}
+
+function exportClip() {
+  document.getElementById('exportMsg').textContent = "Экспорт готов (прототип, видео пока не создаётся)";
+}
+</script>
+</body>
+</html>
